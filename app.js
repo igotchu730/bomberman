@@ -1,10 +1,24 @@
 const express = require('express');
 const app = express();
 
+
+/* Import other files */
+const db = require('./database');
+
+
+
 /* Default route */
-app.get('/',(req,res) => {
-    res.send('Server is running!')
-})
+app.get('/', async (req, res) => {
+    try {
+        //test db connection
+        const tester = await db.Test.find();
+        const resultString = JSON.stringify(tester);
+        res.send(`Server is Running!, TEST: ${resultString}`);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Server error');
+    }
+});
 
 /* Retrieve port from env or use default */
 const PORT = process.env.PORT || 3000;
