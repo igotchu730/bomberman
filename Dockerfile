@@ -14,8 +14,11 @@ RUN npm install
 # Copying everything from local project folder into the /app directory inside the container
 COPY . .
 
-# 6. Expose the port that the server uses
+# 6. Build the frontend (this creates the dist/ folder)
+RUN npm run build
+
+# 7. Expose the port that the server uses
 EXPOSE 3000
 
-# 7. Start the app
+# 8. Start the app
 CMD ["node", "app.js"]

@@ -1,23 +1,17 @@
 const express = require('express');
 const app = express();
+const path = require('path');
 
 
 /* Import other files */
 const db = require('./database');
 
+app.use(express.static('dist'));
 
 
-/* Default route */
-app.get('/', async (req, res) => {
-    try {
-        //test db connection
-        const tester = await db.Test.find();
-        const resultString = JSON.stringify(tester);
-        res.send(`Server is Running!, TEST: ${resultString}`);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Server error');
-    }
+/* Default route; Serve index.html on the root route */
+app.get('/', (req,res) => {
+    res.sendFile(path.join(__dirname,'index.html'));
 });
 
 /* Retrieve port from env or use default */
