@@ -21,11 +21,11 @@ const config = {
 function preload(){
 
     /* Import player character */
-    this.load.spritesheet('character', 'assets/Prototype_Character.png', {
+    this.load.spritesheet('character', new URL('assets/Prototype_Character.png', import.meta.url).href, {
         frameWidth: 32,
         frameHeight: 32
     });
-
+      
 };
 
 
