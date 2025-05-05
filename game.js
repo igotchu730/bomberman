@@ -3,8 +3,8 @@ import Phaser from 'phaser';
 const config = {
     /* How phaser renders the game */
     type: Phaser.AUTO,
-    width: 544,
-    height: 416,
+    width: 736,
+    height: 608,
     backgroundColor:'#1d1d1d',
     /* Render game for pixels, preserves sharp blocky look */
     pixelArt: true,
@@ -12,7 +12,7 @@ const config = {
     physics: {
         default: 'arcade', // basic arcade engine
         arcade: {
-            debug: true // shows outlines around bodies, for testing collisions
+            debug: false // shows outlines around bodies, for testing collisions
         }
     },
     scene: {
@@ -35,6 +35,13 @@ function preload(){
         frameWidth: 32,
         frameHeight: 32
     });
+
+    /* Import tilemap and its tile sets */
+    this.load.tilemapTiledJSON('map', new URL('assets/map.tmj', import.meta.url).href);
+    this.load.image('barrier', new URL('assets/barrier.png', import.meta.url).href);
+    this.load.image('tileset1', new URL('assets/tileset1.png', import.meta.url).href);
+    this.load.image('tileset2', new URL('assets/tileset2.png', import.meta.url).href);
+    this.load.image('tileset3', new URL('assets/tileset3.png', import.meta.url).href);
       
 };
 
@@ -42,13 +49,62 @@ function preload(){
 /* Add game assets and game setup */
 function create(){
 
-    /* Define all directions */
-    const directions = ['front', 'right', 'left', 'back'];
+    /* 
+        ---MAP---
+    */
+
+     /* Dim the background for lighting */
+    this.lights.enable().setAmbientColor(0x101010);
+    /* Add lighting to map */
+    this.lights.addLight(80, 48, 200, 0xffba7a, 1.5);
+    this.lights.addLight(368, 48, 200, 0xffba7a, 1.5);
+    this.lights.addLight(656, 48, 200, 0xffba7a, 1.5);
+    this.lights.addLight(80, 512, 200, 0xffba7a, 1.5);
+    this.lights.addLight(656, 512, 200, 0xffba7a, 1.5);
+
+    this.lights.addLight(80, 288, 500, 0xffba7a, 0.5);
+    this.lights.addLight(368, 512, 500, 0xffba7a, 0.5);
+    this.lights.addLight(368, 288, 500, 0xffba7a, 0.5);
+    this.lights.addLight(656, 288, 500, 0xffba7a, 0.5);
+
+
+    /* Create tile map */
+    const map = this.make.tilemap({key: 'map'});
+
+    /* Connect tile map to the tilesets */
+    const barriers = map.addTilesetImage('barrier','barrier');
+    const tileset1 = map.addTilesetImage('tileset1','tileset1');
+    const tileset2 = map.addTilesetImage('tileset2','tileset2');
+    const tileset3 = map.addTilesetImage('tileset3','tileset3');
+
+    /* Create layers as is in tile map */
+    const base_color = map.createLayer('base_color',[barriers, tileset1, tileset2, tileset3], 0, 0);
+    const floor = map.createLayer('floor',[barriers, tileset1, tileset2, tileset3], 0, 0);
+    const outer_walls = map.createLayer('outer_walls',[barriers, tileset1, tileset2, tileset3], 0, 0);
+    const barrs = map.createLayer('barriers',[barriers, tileset1, tileset2, tileset3], 0, 0);
+    const decor = map.createLayer('decor',[barriers, tileset1, tileset2, tileset3], 0, 0);
+
+    /* Create layers for object layers */
+    const playerSpawnLayer = map.getObjectLayer('player_spawn');
+    const collisionLayer = map.getObjectLayer('collision');
+    
+    /* Add layers to Light2d pipeline */
+    base_color.setPipeline('Light2D');
+    floor.setPipeline('Light2D');
+    outer_walls.setPipeline('Light2D');
+    barrs.setPipeline('Light2D');
+    decor.setPipeline('Light2D');
+
+    
+
 
 
     /* 
         ---PLAYER ANIMATIONS---
     */
+
+    /* Define all directions */
+    const directions = ['front', 'right', 'left', 'back'];
    
     /* Define all player animation data */
     const playerAnimations = {
@@ -77,15 +133,21 @@ function create(){
     }
 
     /* Add player character as a physics sprite */
-    this.player = this.physics.add.sprite(272, 208,'character');
+    this.player = this.physics.add.sprite(48, 80,'character');
 
     /* Make the player look bigger, Make collision box smaller */
     this.player.setScale(2);
-    this.player.body.setSize(16, 16).setOffset(8, 8); 
+    this.player.body.setSize(10,10).setOffset(11,13); 
 
 
     /* Player character collides with world bounds */
     this.player.setCollideWorldBounds(true);
+
+    /* Add player to Light2d pipeline */
+    this.player.setPipeline('Light2D');
+    /* Dynamic player lighting */
+    this.playerLight = this.lights.addLight(this.player.x, this.player.y, 100, 0xffba7a, 0.5)
+
 
     /* Create moving keys */
     this.cursors = this.input.keyboard.createCursorKeys(); // arrow keys
@@ -102,6 +164,28 @@ function create(){
     /* Play idle animation */
     this.player.play(this.lastFacedDirection);
 
+
+
+
+    /* 
+        ---COLLISIONS---
+    */
+    collisionLayer.objects.forEach(obj => {
+        const collisionObj = this.add.rectangle(
+            obj.x + obj.width / 2,
+            obj.y + obj.height / 2,
+            obj.width,
+            obj.height
+        );
+
+        this.physics.add.existing(collisionObj, true);
+
+        this.physics.add.collider(this.player, collisionObj);
+
+    });
+
+    
+    
 };
 
 
@@ -152,6 +236,12 @@ function update(){
     else{
         player.play(this.lastFacedDirection, true) // player faces last known direction
     }
+
+
+    /* Dynamic player lighting, light follows player */
+    this.playerLight.x = this.player.x;
+    this.playerLight.y = this.player.y;
+
 };
 
 new Phaser.Game(config);
