@@ -61,11 +61,9 @@ function create(){
     this.lights.addLight(656, 48, 200, 0xffba7a, 1.5);
     this.lights.addLight(80, 512, 200, 0xffba7a, 1.5);
     this.lights.addLight(656, 512, 200, 0xffba7a, 1.5);
-
-    this.lights.addLight(80, 288, 500, 0xffba7a, 0.5);
+    this.lights.addLight(224, 288, 500, 0xffba7a, 1.5);
+    this.lights.addLight(528, 288, 500, 0xffba7a, 1.5);
     this.lights.addLight(368, 512, 500, 0xffba7a, 0.5);
-    this.lights.addLight(368, 288, 500, 0xffba7a, 0.5);
-    this.lights.addLight(656, 288, 500, 0xffba7a, 0.5);
 
 
     /* Create tile map */
@@ -146,7 +144,7 @@ function create(){
     /* Add player to Light2d pipeline */
     this.player.setPipeline('Light2D');
     /* Dynamic player lighting */
-    this.playerLight = this.lights.addLight(this.player.x, this.player.y, 100, 0xffba7a, 0.5)
+    this.playerLight = this.lights.addLight(this.player.x, this.player.y, 100, 0xffba7a, 0.7)
 
 
     /* Create moving keys */
@@ -170,16 +168,19 @@ function create(){
     /* 
         ---COLLISIONS---
     */
+   /* Loop through every object in tiled object layer called collision */
     collisionLayer.objects.forEach(obj => {
+        // create phaser rectangle at position and size of tiled object
         const collisionObj = this.add.rectangle(
             obj.x + obj.width / 2,
             obj.y + obj.height / 2,
             obj.width,
             obj.height
         );
-
+        // add arcade physics to the rectangles, makes it an obstacle
         this.physics.add.existing(collisionObj, true);
 
+        // enable collision detection between player and rectangles
         this.physics.add.collider(this.player, collisionObj);
 
     });
