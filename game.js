@@ -43,6 +43,12 @@ function preload(){
     this.load.image('tileset2', new URL('assets/tileset2.png', import.meta.url).href);
     this.load.image('tileset3', new URL('assets/tileset3.png', import.meta.url).href);
       
+    /* Import crate sprite */
+    this.load.spritesheet('crate', new URL('assets/crate.png', import.meta.url).href, {
+        frameWidth: 32,
+        frameHeight: 32
+    });
+
 };
 
 
@@ -184,6 +190,63 @@ function create(){
         this.physics.add.collider(this.player, collisionObj);
 
     });
+
+
+
+
+    /* 
+        ---CRATE SPAWNING---
+    */
+    function spawnCrates(scene, map, playerSpawnLayer, collisionLayer, 
+                        crateGroup, crateTextureKey, maxCrate, spawnChance)
+    {
+        const width = map.width;
+        const height = map.height;
+        let cratesPlaced = 0;
+
+        const blockedTiles = new Set();
+
+        const toKey = (x,y) => `${x},${y}`;
+        
+        [...playerSpawnLayer.objects, ...collisionLayer.objects].forEach(obj => {
+            const hasNoSpawn = obj.properties?.some(p => p.name === 'noSpawn' && (p.value === true));
+            if (hasNoSpawn) {
+                const tileX = Math.floor(obj.x / map.tileWidth);
+                const tileY = Math.floor(obj.y / map.tileHeight);
+                blockedTiles.add(toKey(tileX, tileY));
+            }
+        });
+
+        for(let y = 0; y < height; y++){
+            for(let x = 0; x < width; x++){
+                if(cratesPlaced >= maxCrate) return;
+
+                const key = toKey(x,y);
+                if(blockedTiles.has(key)) continue;
+
+                if(Math.random() < spawnChance){
+                    const worldX = map.tileToWorldX(x);
+                    const worldY = map.tileToWorldY(y);
+                    const crate = scene.physics.add.sprite(
+                        worldX + map.tileWidth / 2,
+                        worldY + map.tileHeight / 2,
+                        crateTextureKey
+                    );
+                    
+                    crate.body.moves = false; //makes crates immovable
+
+                    crate.setPipeline('Light2D'); // Add crates to Light2d pipeline
+                    crate.setTint(0xAAAAAA); // Darken the crates a bit
+
+                    crateGroup.add(crate);
+                    cratesPlaced++;
+                }
+            }
+        }
+    }
+    this.crates = this.physics.add.group();
+    spawnCrates(this, map, playerSpawnLayer, collisionLayer, this.crates, 'crate', 250, 0.85);
+    this.physics.add.collider(this.player,this.crates);
 
     
     
