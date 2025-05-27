@@ -23,7 +23,8 @@ const config = {
     /* Makes sure the game scales to fit screen*/
     scale: {
         mode: Phaser.Scale.FIT,
-    }
+    },
+    
 };
 
 
@@ -45,6 +46,12 @@ function preload(){
       
     /* Import crate sprite */
     this.load.spritesheet('crate', new URL('assets/crate.png', import.meta.url).href, {
+        frameWidth: 32,
+        frameHeight: 32
+    });
+
+    /* Import bomb sprite */
+    this.load.spritesheet('bomb', new URL('assets/bomb.png', import.meta.url).href, {
         frameWidth: 32,
         frameHeight: 32
     });
@@ -74,6 +81,7 @@ function create(){
 
     /* Create tile map */
     const map = this.make.tilemap({key: 'map'});
+    this.map = map;
 
     /* Connect tile map to the tilesets */
     const barriers = map.addTilesetImage('barrier','barrier');
@@ -200,14 +208,19 @@ function create(){
     function spawnCrates(scene, map, playerSpawnLayer, collisionLayer, 
                         crateGroup, crateTextureKey, maxCrate, spawnChance)
     {
+        // initialize map bounds and crate counter
         const width = map.width;
         const height = map.height;
         let cratesPlaced = 0;
 
+        // create a set to track tiles that are markled no spawn true
         const blockedTiles = new Set();
 
+        // convert tile coordinate to string key
         const toKey = (x,y) => `${x},${y}`;
         
+        /* for each object on the player spawn and collision layer, check properties for no spawn true.
+           If true, convert object's map coordinates to tile coordinates, add to set*/
         [...playerSpawnLayer.objects, ...collisionLayer.objects].forEach(obj => {
             const hasNoSpawn = obj.properties?.some(p => p.name === 'noSpawn' && (p.value === true));
             if (hasNoSpawn) {
@@ -217,13 +230,17 @@ function create(){
             }
         });
 
+        // Loop through every tile
         for(let y = 0; y < height; y++){
             for(let x = 0; x < width; x++){
+                // if amount of crates is greater than or equal to max, return
                 if(cratesPlaced >= maxCrate) return;
 
+                // convert current tile to string key and see if it's in the blocked tile set, skip this tile
                 const key = toKey(x,y);
                 if(blockedTiles.has(key)) continue;
 
+                // pick random number 0-1. If its less than spawn chance, crate is placed
                 if(Math.random() < spawnChance){
                     const worldX = map.tileToWorldX(x);
                     const worldY = map.tileToWorldY(y);
@@ -238,23 +255,61 @@ function create(){
                     crate.setPipeline('Light2D'); // Add crates to Light2d pipeline
                     crate.setTint(0xAAAAAA); // Darken the crates a bit
 
+                    // add crate to physics group
                     crateGroup.add(crate);
+                    // increment
                     cratesPlaced++;
                 }
             }
         }
     }
+    // maximum amount of crates
+    const maxCrate = 250;
+    // chance spawning crate
+    const spawnChance = 0.85;
+
+    // create crate physics group
     this.crates = this.physics.add.group();
-    spawnCrates(this, map, playerSpawnLayer, collisionLayer, this.crates, 'crate', 250, 0.85);
+    // call function for crate spawning
+    //spawnCrates(this, map, playerSpawnLayer, collisionLayer, this.crates, 'crate', maxCrate, spawnChance);
+    // collison between player and crate
     this.physics.add.collider(this.player,this.crates);
 
     
+
+
+    /* 
+        ---BOMB SPAWNING---
+    */
+   /* Bomb animation */
+    this.anims.create({
+        key: `bomb-idle`,
+        frames: this.anims.generateFrameNumbers('bomb', { start: 0, end: 7 }),
+        frameRate: 10,
+        repeat: -1
+    });
+    /* Create space keys */
+    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE); // space keys
+
+    /* create bombs group, add to physics group */
+    this.bombs = this.physics.add.group();
+
+    /* set for tracking occupied tiles */
+    this.occupiedBombTile = new Set();
+
+    /* count bombs player has and amount placed */
+    this.bombCount = 1;
+    this.bombsPlaced = 0;
     
+
 };
 
 
 function update(){
 
+    /* 
+        Player logic
+    */
     const speed = 80; // player speed
     const player = this.player; // player object
     const cursors = this.cursors; // cursor object
@@ -301,10 +356,69 @@ function update(){
         player.play(this.lastFacedDirection, true) // player faces last known direction
     }
 
-
     /* Dynamic player lighting, light follows player */
     this.playerLight.x = this.player.x;
     this.playerLight.y = this.player.y;
+
+
+
+    /* 
+        Bomb logic
+    */
+    const spaceKey = this.spaceKey; // spaceKey object
+
+    /* Bomb spawning when space is pressed */
+    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+
+        // get center of player
+        const playerCenter = this.player.getCenter();
+        // convert player center to nearest tile coords
+        const tile = this.map.worldToTileXY(playerCenter.x, playerCenter.y);
+        // convert tile coords to string keys
+        const tileKey = `${tile.x},${tile.y}`;
+
+        // check if tile is occupied by bomb or if player has enough bombs left
+        if(this.occupiedBombTile.has(tileKey) || this.bombsPlaced >= this.bombCount) return;
+
+
+        // convert tile coords to map coords
+        const worldPos = this.map.tileToWorldXY(tile.x, tile.y);
+        // get bombPos with center
+        const bombPosX = worldPos.x + this.map.tileWidth / 2;
+        const bombPosY = worldPos.y + this.map.tileHeight / 2;
+
+        // place bomb
+        const bomb = this.physics.add.sprite(bombPosX,bombPosY,'bomb');
+
+        /* Play bomb idle animation */
+        bomb.play('bomb-idle');
+
+        /* color/glow effects */
+        const glow = this.add.sprite(bomb.x, bomb.y, 'bombGlow');
+        glow.setScale(1.8);
+        glow.setAlpha(0.5);
+        glow.setDepth(bomb.depth - 1);
+        bomb.setTint(0xffcc99);
+
+        /* track bombs, add to physics group */
+        this.bombs.add(bomb);
+
+        // Track tile as occupied
+        this.occupiedBombTile.add(tileKey);
+
+        // Add to amount of bombs placed
+        this.bombsPlaced++;
+
+
+        // Destroy bomb after set time
+        this.time.delayedCall(3500, () => {
+            this.occupiedBombTile.delete(tileKey);
+            this.lights.removeLight(bomb.light);
+            this.bombsPlaced-- //reset bombs placed
+            bomb.destroy();
+        });
+    }
+
 
 };
 
