@@ -28,6 +28,19 @@ const config = {
 };
 
 
+
+
+/* USEFUL FUNCTIONS */
+function toKey(x, y) {
+    return `${x},${y}`;
+}
+
+
+
+
+
+
+
 /* Load game assets */
 function preload(){
 
@@ -52,6 +65,12 @@ function preload(){
 
     /* Import bomb sprite */
     this.load.spritesheet('bomb', new URL('assets/bomb.png', import.meta.url).href, {
+        frameWidth: 32,
+        frameHeight: 32
+    });
+
+    /* Import explosion sprite */
+    this.load.spritesheet('explosion', new URL('assets/explosion.png', import.meta.url).href, {
         frameWidth: 32,
         frameHeight: 32
     });
@@ -107,7 +126,70 @@ function create(){
     barrs.setPipeline('Light2D');
     decor.setPipeline('Light2D');
 
-    
+
+
+    /* 
+        ---USEFUL FUNCTIONS---
+    */
+    // function to get all blocked tiles (playerspawn and walls)
+    function getAllBlockedTiles(map, layers, propertyName = 'noSpawn'){
+
+        // create a set to track tiles that are markled no spawn true
+        const blocked = new Set();
+
+        /* for each object on the player spawn and collision layer, check properties for no spawn true.
+           If true, convert object's map coordinates to tile coordinates, add to set*/
+        layers.forEach(layer => {
+            if(!layer?.objects?.forEach) return;
+
+            layer.objects.forEach(obj => {
+                const hasBlock = obj.properties?.some(
+                    p => p.name === propertyName && p.value === true
+                );
+                if(hasBlock){
+                    const tileX = Math.floor(obj.x/map.tileWidth);
+                    const tileY = Math.floor(obj.y/map.tileHeight);
+                    blocked.add(toKey(tileX,tileY));
+                };
+            });
+        });
+        return blocked;
+    };
+    this.blockedTiles = getAllBlockedTiles(map, [playerSpawnLayer, collisionLayer]); //call
+
+    // function to get all blocked tiles (walls only)
+    function getWallBlockedTiles(map, layers, propertyName1 = 'noSpawn',propertyName2 = 'playerSpawn'){
+
+        // create a set to track tiles that are markled no spawn true
+        const blocked = new Set();
+
+        /* for each object on the player spawn and collision layer, check properties for no spawn true.
+           If true, convert object's map coordinates to tile coordinates, add to set*/
+        layers.forEach(layer => {
+            if(!layer?.objects?.forEach) return;
+
+            layer.objects.forEach(obj => {
+                const hasNoSpawn = obj.properties?.some(
+                    p => p.name === propertyName1 && p.value === true
+                );
+                const notPlayerSpawn = obj.properties?.some(
+                    p => p.name === propertyName2 && p.value === false
+                );
+                if(hasNoSpawn && notPlayerSpawn){
+                    const tileX = Math.floor(obj.x/map.tileWidth);
+                    const tileY = Math.floor(obj.y/map.tileHeight);
+                    blocked.add(toKey(tileX,tileY));
+                };
+            });
+        });
+        return blocked;
+    };
+    this.blockedWallTiles = getWallBlockedTiles(map, [playerSpawnLayer, collisionLayer]); //call
+
+
+
+
+
 
 
 
@@ -205,30 +287,12 @@ function create(){
     /* 
         ---CRATE SPAWNING---
     */
-    function spawnCrates(scene, map, playerSpawnLayer, collisionLayer, 
-                        crateGroup, crateTextureKey, maxCrate, spawnChance)
+    function spawnCrates(scene, map, blockedTiles, crateGroup, crateTextureKey, maxCrate, spawnChance)
     {
         // initialize map bounds and crate counter
         const width = map.width;
         const height = map.height;
         let cratesPlaced = 0;
-
-        // create a set to track tiles that are markled no spawn true
-        const blockedTiles = new Set();
-
-        // convert tile coordinate to string key
-        const toKey = (x,y) => `${x},${y}`;
-        
-        /* for each object on the player spawn and collision layer, check properties for no spawn true.
-           If true, convert object's map coordinates to tile coordinates, add to set*/
-        [...playerSpawnLayer.objects, ...collisionLayer.objects].forEach(obj => {
-            const hasNoSpawn = obj.properties?.some(p => p.name === 'noSpawn' && (p.value === true));
-            if (hasNoSpawn) {
-                const tileX = Math.floor(obj.x / map.tileWidth);
-                const tileY = Math.floor(obj.y / map.tileHeight);
-                blockedTiles.add(toKey(tileX, tileY));
-            }
-        });
 
         // Loop through every tile
         for(let y = 0; y < height; y++){
@@ -271,7 +335,7 @@ function create(){
     // create crate physics group
     this.crates = this.physics.add.group();
     // call function for crate spawning
-    //spawnCrates(this, map, playerSpawnLayer, collisionLayer, this.crates, 'crate', maxCrate, spawnChance);
+    //spawnCrates(this, map, blockedTiles, this.crates, 'crate', maxCrate, spawnChance);
     // collison between player and crate
     this.physics.add.collider(this.player,this.crates);
 
@@ -298,9 +362,171 @@ function create(){
     this.occupiedBombTile = new Set();
 
     /* count bombs player has and amount placed */
-    this.bombCount = 1;
+    this.bombCount = 5;
     this.bombsPlaced = 0;
-    
+
+
+
+
+    /* 
+        ---EXPLOSION ANIMATIONS---
+    */
+    /* explosion origin animation */
+    this.anims.create({
+        key: `explosion-origin`,
+        frames: [
+                    { key: 'explosion', frame: 0},
+                    { key: 'explosion', frame: 7},
+                    { key: 'explosion', frame: 14},
+                    { key: 'explosion', frame: 21},
+                    { key: 'explosion', frame: 28},
+                    { key: 'explosion', frame: 35},
+                    { key: 'explosion', frame: 42},
+                    { key: 'explosion', frame: 49},
+                    { key: 'explosion', frame: 56},
+                    { key: 'explosion', frame: 63},
+                    { key: 'explosion', frame: 70},
+                    { key: 'explosion', frame: 77},
+                    { key: 'explosion', frame: 84},
+                ],
+        frameRate: 15,
+        repeat: 0
+    });
+    /* explosion mid-vertical animation */
+    this.anims.create({
+        key: `explosion-mid-vertical`,
+        frames: [
+                    { key: 'explosion', frame: 1},
+                    { key: 'explosion', frame: 8},
+                    { key: 'explosion', frame: 15},
+                    { key: 'explosion', frame: 22},
+                    { key: 'explosion', frame: 29},
+                    { key: 'explosion', frame: 36},
+                    { key: 'explosion', frame: 43},
+                    { key: 'explosion', frame: 50},
+                    { key: 'explosion', frame: 57},
+                    { key: 'explosion', frame: 64},
+                    { key: 'explosion', frame: 71},
+                    { key: 'explosion', frame: 78},
+                    { key: 'explosion', frame: 85},
+                ],
+        frameRate: 15,
+        repeat: 0
+    });
+    /* explosion mid-horizontal animation */
+    this.anims.create({
+        key: `explosion-mid-horizontal`,
+        frames: [
+                    { key: 'explosion', frame: 2},
+                    { key: 'explosion', frame: 9},
+                    { key: 'explosion', frame: 16},
+                    { key: 'explosion', frame: 23},
+                    { key: 'explosion', frame: 30},
+                    { key: 'explosion', frame: 37},
+                    { key: 'explosion', frame: 44},
+                    { key: 'explosion', frame: 51},
+                    { key: 'explosion', frame: 58},
+                    { key: 'explosion', frame: 65},
+                    { key: 'explosion', frame: 72},
+                    { key: 'explosion', frame: 79},
+                    { key: 'explosion', frame: 86},
+                ],
+        frameRate: 15,
+        repeat: 0
+    });
+    /* explosion end-up animation */
+    this.anims.create({
+        key: `explosion-end-up`,
+        frames: [
+                    { key: 'explosion', frame: 3},
+                    { key: 'explosion', frame: 10},
+                    { key: 'explosion', frame: 17},
+                    { key: 'explosion', frame: 24},
+                    { key: 'explosion', frame: 31},
+                    { key: 'explosion', frame: 38},
+                    { key: 'explosion', frame: 45},
+                    { key: 'explosion', frame: 52},
+                    { key: 'explosion', frame: 59},
+                    { key: 'explosion', frame: 66},
+                    { key: 'explosion', frame: 73},
+                    { key: 'explosion', frame: 80},
+                    { key: 'explosion', frame: 87},
+                ],
+        frameRate: 15,
+        repeat: 0
+    });
+    /* explosion end-down animation */
+    this.anims.create({
+        key: `explosion-end-down`,
+        frames: [
+                    { key: 'explosion', frame: 4},
+                    { key: 'explosion', frame: 11},
+                    { key: 'explosion', frame: 18},
+                    { key: 'explosion', frame: 25},
+                    { key: 'explosion', frame: 32},
+                    { key: 'explosion', frame: 39},
+                    { key: 'explosion', frame: 46},
+                    { key: 'explosion', frame: 53},
+                    { key: 'explosion', frame: 60},
+                    { key: 'explosion', frame: 67},
+                    { key: 'explosion', frame: 74},
+                    { key: 'explosion', frame: 81},
+                    { key: 'explosion', frame: 88},
+                ],
+        frameRate: 15,
+        repeat: 0
+    });
+    /* explosion end-left animation */
+    this.anims.create({
+        key: `explosion-end-left`,
+        frames: [
+                    { key: 'explosion', frame: 5},
+                    { key: 'explosion', frame: 12},
+                    { key: 'explosion', frame: 19},
+                    { key: 'explosion', frame: 26},
+                    { key: 'explosion', frame: 33},
+                    { key: 'explosion', frame: 40},
+                    { key: 'explosion', frame: 47},
+                    { key: 'explosion', frame: 54},
+                    { key: 'explosion', frame: 61},
+                    { key: 'explosion', frame: 68},
+                    { key: 'explosion', frame: 75},
+                    { key: 'explosion', frame: 82},
+                    { key: 'explosion', frame: 89},
+                ],
+        frameRate: 15,
+        repeat: 0
+    });
+    /* explosion end-right animation */
+    this.anims.create({
+        key: `explosion-end-right`,
+        frames: [
+                    { key: 'explosion', frame: 6},
+                    { key: 'explosion', frame: 13},
+                    { key: 'explosion', frame: 20},
+                    { key: 'explosion', frame: 27},
+                    { key: 'explosion', frame: 34},
+                    { key: 'explosion', frame: 41},
+                    { key: 'explosion', frame: 48},
+                    { key: 'explosion', frame: 55},
+                    { key: 'explosion', frame: 62},
+                    { key: 'explosion', frame: 69},
+                    { key: 'explosion', frame: 76},
+                    { key: 'explosion', frame: 83},
+                    { key: 'explosion', frame: 90},
+                ],
+        frameRate: 15,
+        repeat: 0
+    });
+
+    /* 
+        ---EXPLOSION LOGIC---
+    */
+
+    // maximum amount of crates
+    this.explosionRadius = 7;
+
+
 
 };
 
@@ -362,9 +588,99 @@ function update(){
 
 
 
+
+    /* 
+        ---EXPLOSION LOGIC---
+    */
+    // function to find all tiles of explosions
+    function detonateBomb(scene, map, currBombTile, blockedWallTiles, explosionRadius){
+        // create a set to track tiles that are exploded
+        const explosionTiles = new Set();
+        // create a map to track middle explosion directions
+        const explosionMidDir = new Map();
+        // create a map to track tiles where explosion ends
+        const explosionEndpoints = new Map();
+        // track center tile of explosion
+        let centerKey = toKey(currBombTile.x, currBombTile.y);
+
+        // 4 directions
+        const directions = [
+            { x: 0, y: -1, name: 'up', mid: 'vertical' },
+            { x: 0, y: 1,  name: 'down', mid: 'vertical' },
+            { x: -1, y: 0, name: 'left', mid: 'horizontal' },
+            { x: 1, y: 0,  name: 'right', mid: 'horizontal' }
+        ];
+
+        // for each direction, expand by radius length. Detect any collisions. Track in sets.
+        directions.forEach(dir =>{
+            let endpoint = null;
+
+            for(let i = 1; i <= explosionRadius; i++){
+                const tX = currBombTile.x + dir.x * i;
+                const tY = currBombTile.y + dir.y * i;
+                const key = toKey(tX,tY);
+
+                if(blockedWallTiles.has(key)) break;
+
+                explosionTiles.add(key);
+                explosionMidDir.set(key, dir.mid);
+                endpoint = key;
+            };
+
+            if (endpoint) {
+                explosionEndpoints.set(
+                    endpoint, directions.find(d => toKey(currBombTile.x + d.x * explosionRadius, currBombTile.y + d.y * explosionRadius) === endpoint)?.name || dir.name
+                );
+            };
+        });
+
+        // include center tile
+        explosionTiles.add(centerKey);
+
+        // spawn explosion sprites
+        explosionTiles.forEach(key => {
+
+            // take keys from each exzplosion tile and turn to numbers
+            const [x,y] = key.split(',').map(Number);
+
+            // convert tile position into pixels
+            const worldX = map.tileToWorldX(x) + map.tileWidth / 2;
+            const worldY = map.tileToWorldY(y) + map.tileHeight / 2;
+
+            // default animation placeholder
+            let explosionAnimation = 'explosion-mid-horizontal';
+
+            // directionally and positionally determine explosion sprites
+            if(key === centerKey){ //center
+                explosionAnimation = 'explosion-origin'
+            } else if(explosionEndpoints.has(key)){ // ends
+                const dir = explosionEndpoints.get(key);
+                explosionAnimation = `explosion-end-${dir}`;
+            } else{ // mids
+                const dir = explosionMidDir.get(key);
+                explosionAnimation = `explosion-mid-${dir}`;
+            }
+
+            // spawn explosion sprites, play animation, destroy when done
+            const explosion = scene.physics.add.sprite(worldX,worldY,'explosion');
+            explosion.play(explosionAnimation);
+            
+            explosion.on('animationcomplete', () => {
+                explosion.destroy();
+            });
+
+        });
+        
+    };
+
+
+
+
+
     /* 
         Bomb logic
     */
+
     const spaceKey = this.spaceKey; // spaceKey object
 
     /* Bomb spawning when space is pressed */
@@ -416,6 +732,7 @@ function update(){
             this.lights.removeLight(bomb.light);
             this.bombsPlaced-- //reset bombs placed
             bomb.destroy();
+            detonateBomb(this, this.map, tile, this.blockedWallTiles, this.explosionRadius);
         });
     }
 
