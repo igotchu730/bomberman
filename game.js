@@ -30,18 +30,27 @@ const config = {
 
 
 
-/* USEFUL FUNCTIONS */
+/*
+    USEFUL FUNCTIONS & VARIABLES
+*/
+
+// function to turn tile coordinates to keys
 function toKey(x, y) {
     return `${x},${y}`;
 }
 
+// set for storing position of crates
+let crateTiles = null;
 
 
 
 
 
 
-/* Load game assets */
+
+/*
+    Load game assets
+*/
 function preload(){
 
     /* Import player character */
@@ -78,7 +87,12 @@ function preload(){
 };
 
 
-/* Add game assets and game setup */
+
+
+
+/* 
+    Add game assets and game setup 
+*/
 function create(){
 
     /* 
@@ -221,13 +235,17 @@ function create(){
                     { key: 'character', frame: start + 12 }
                 ],
                 frameRate,
-                repeat: -1
+                repeat: type === 'death' ? 0 : type === 'damage' ? 1 : -1 // only loop if not death
             });
         });
     }
 
     /* Add player character as a physics sprite */
     this.player = this.physics.add.sprite(48, 80,'character');
+
+    /* Player is alive */
+    this.player.isDead = false;
+
 
     /* Make the player look bigger, Make collision box smaller */
     this.player.setScale(2);
@@ -240,7 +258,7 @@ function create(){
     /* Add player to Light2d pipeline */
     this.player.setPipeline('Light2D');
     /* Dynamic player lighting */
-    this.playerLight = this.lights.addLight(this.player.x, this.player.y, 100, 0xffba7a, 0.7)
+    this.playerLight = this.lights.addLight(this.player.x, this.player.y, 100, 0xffba7a, 0.5)
 
 
     /* Create moving keys */
@@ -283,6 +301,25 @@ function create(){
 
 
 
+    /* 
+        ---CRATE ANIMATIONS---
+    */
+    /* crate exploding animation */
+    this.anims.create({
+        key: `crate-explode`,
+        frames: [
+                    { key: 'crate', frame: 0},
+                    { key: 'crate', frame: 1},
+                    { key: 'crate', frame: 2},
+                    { key: 'crate', frame: 3},
+                    { key: 'crate', frame: 4}
+                ],
+        frameRate: 10,
+        repeat: 0
+    });
+
+
+
 
     /* 
         ---CRATE SPAWNING---
@@ -294,11 +331,14 @@ function create(){
         const height = map.height;
         let cratesPlaced = 0;
 
+        // set to record crate positions
+        const cratePositions = new Set();
+
         // Loop through every tile
         for(let y = 0; y < height; y++){
             for(let x = 0; x < width; x++){
                 // if amount of crates is greater than or equal to max, return
-                if(cratesPlaced >= maxCrate) return;
+                if(cratesPlaced >= maxCrate) return cratePositions;
 
                 // convert current tile to string key and see if it's in the blocked tile set, skip this tile
                 const key = toKey(x,y);
@@ -323,9 +363,13 @@ function create(){
                     crateGroup.add(crate);
                     // increment
                     cratesPlaced++;
+
+                    // save crate position in set
+                    cratePositions.add(key);
                 }
             }
         }
+        return cratePositions;
     }
     // maximum amount of crates
     const maxCrate = 250;
@@ -334,8 +378,10 @@ function create(){
 
     // create crate physics group
     this.crates = this.physics.add.group();
-    // call function for crate spawning
-    //spawnCrates(this, map, blockedTiles, this.crates, 'crate', maxCrate, spawnChance);
+
+    // call function for crate spawning, assign return to crate Tiles set
+    crateTiles = spawnCrates(this, map, this.blockedTiles, this.crates, 'crate', maxCrate, spawnChance);
+
     // collison between player and crate
     this.physics.add.collider(this.player,this.crates);
 
@@ -389,7 +435,7 @@ function create(){
                     { key: 'explosion', frame: 77},
                     { key: 'explosion', frame: 84},
                 ],
-        frameRate: 15,
+        frameRate: 20,
         repeat: 0
     });
     /* explosion mid-vertical animation */
@@ -410,7 +456,7 @@ function create(){
                     { key: 'explosion', frame: 78},
                     { key: 'explosion', frame: 85},
                 ],
-        frameRate: 15,
+        frameRate: 20,
         repeat: 0
     });
     /* explosion mid-horizontal animation */
@@ -431,7 +477,7 @@ function create(){
                     { key: 'explosion', frame: 79},
                     { key: 'explosion', frame: 86},
                 ],
-        frameRate: 15,
+        frameRate: 20,
         repeat: 0
     });
     /* explosion end-up animation */
@@ -452,7 +498,7 @@ function create(){
                     { key: 'explosion', frame: 80},
                     { key: 'explosion', frame: 87},
                 ],
-        frameRate: 15,
+        frameRate: 20,
         repeat: 0
     });
     /* explosion end-down animation */
@@ -473,7 +519,7 @@ function create(){
                     { key: 'explosion', frame: 81},
                     { key: 'explosion', frame: 88},
                 ],
-        frameRate: 15,
+        frameRate: 20,
         repeat: 0
     });
     /* explosion end-left animation */
@@ -494,7 +540,7 @@ function create(){
                     { key: 'explosion', frame: 82},
                     { key: 'explosion', frame: 89},
                 ],
-        frameRate: 15,
+        frameRate: 20,
         repeat: 0
     });
     /* explosion end-right animation */
@@ -515,7 +561,7 @@ function create(){
                     { key: 'explosion', frame: 83},
                     { key: 'explosion', frame: 90},
                 ],
-        frameRate: 15,
+        frameRate: 20,
         repeat: 0
     });
 
@@ -528,6 +574,7 @@ function create(){
 
 
 
+
 };
 
 
@@ -536,6 +583,11 @@ function update(){
     /* 
         Player logic
     */
+
+    // if dead, then stop everything
+    if (this.player.isDead) return;
+
+
     const speed = 80; // player speed
     const player = this.player; // player object
     const cursors = this.cursors; // cursor object
@@ -620,7 +672,38 @@ function update(){
                 const tY = currBombTile.y + dir.y * i;
                 const key = toKey(tX,tY);
 
+                // if blocked by barrier
                 if(blockedWallTiles.has(key)) break;
+
+                // if blocked by crate
+                if(crateTiles.has(key)){
+                    explosionTiles.add(key);
+                    explosionMidDir.set(key, dir.mid); 
+
+                    // find the exploding crate at this tile
+                    const [tileX, tileY] = key.split(',').map(Number);
+                    const worldX = map.tileToWorldX(tileX) + map.tileWidth / 2;
+                    const worldY = map.tileToWorldY(tileY) + map.tileHeight / 2;
+
+                    // return array of all sprite onjects in crates group
+                    const crate = scene.crates.getChildren().find(c => 
+                        // checks if crate position is close enough to target position
+                        Phaser.Math.Fuzzy.Equal(c.x, worldX, 1) &&
+                        Phaser.Math.Fuzzy.Equal(c.y, worldY, 1)
+                    );
+
+                    // destroy crate after exploding
+                    if(crate){
+                        crate.play('crate-explode');
+                        crate.on('animationcomplete', () => {
+                            crate.destroy();
+                        });
+                    }
+
+                    // delete crate key from set
+                    crateTiles.delete(key);
+                    break;
+                };
 
                 explosionTiles.add(key);
                 explosionMidDir.set(key, dir.mid);
@@ -663,6 +746,46 @@ function update(){
 
             // spawn explosion sprites, play animation, destroy when done
             const explosion = scene.physics.add.sprite(worldX,worldY,'explosion');
+
+            // Add explosion sprite to physics group
+            if (!scene.explosions) {
+                scene.explosions = scene.physics.add.group();
+            }
+            scene.explosions.add(explosion);
+
+            /* PLAYER DEATH */
+            // Set up collision detection between player and explosion
+            scene.physics.add.overlap(scene.player, explosion, () => {
+                if (!scene.player.isDead) {
+                    // set player is dead
+                    scene.player.isDead = true;
+                    // stop player movement
+                    scene.player.setVelocity(0);
+
+                    // find last faced direcction and play death animation
+                    const direction = scene.lastFacedDirection.replace('idle-', '');
+                    scene.player.anims.play(`damage-${direction}`, true);
+                    scene.time.delayedCall(500, () => {
+                        scene.player.anims.play(`death-${direction}`, true);
+                    });
+
+                    // disable player collisions
+                    scene.player.body.enable = false;
+
+                    //after some time, destory player body
+                    scene.time.delayedCall(1200, () => {
+                        scene.player.destroy();
+                    })
+                };
+            }, null, scene);
+  
+
+            // color edit
+            //explosion.setTint(0xFFFFE0); // more white
+            explosion.setTint(0xFFEFC2); // more yellow
+            explosion.setBlendMode(Phaser.BlendModes.ADD);
+
+            // play animation
             explosion.play(explosionAnimation);
             
             explosion.on('animationcomplete', () => {
@@ -735,6 +858,8 @@ function update(){
             detonateBomb(this, this.map, tile, this.blockedWallTiles, this.explosionRadius);
         });
     }
+
+
 
 
 };
