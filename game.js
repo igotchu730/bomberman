@@ -246,10 +246,13 @@ function create(){
     /* Player is alive */
     this.player.isDead = false;
 
+    /* show player on top layer */
+    this.player.setDepth(1);
+
 
     /* Make the player look bigger, Make collision box smaller */
     this.player.setScale(2);
-    this.player.body.setSize(10,10).setOffset(11,13); 
+    this.player.body.setSize(8, 8).setOffset(12, 14);
 
 
     /* Player character collides with world bounds */
@@ -285,12 +288,15 @@ function create(){
    /* Loop through every object in tiled object layer called collision */
     collisionLayer.objects.forEach(obj => {
         // create phaser rectangle at position and size of tiled object
+        const expandedWidth = obj.width + 4;
+        const expandedHeight = obj.height + 4;
         const collisionObj = this.add.rectangle(
             obj.x + obj.width / 2,
             obj.y + obj.height / 2,
-            obj.width,
-            obj.height
+            expandedWidth,
+            expandedHeight
         );
+
         // add arcade physics to the rectangles, makes it an obstacle
         this.physics.add.existing(collisionObj, true);
 
@@ -353,7 +359,13 @@ function create(){
                         worldY + map.tileHeight / 2,
                         crateTextureKey
                     );
-                    
+
+                    // crate collision correction ???
+                    crate.body.setSize(crate.width + 4, crate.height + 4).setOffset(-2, -2);
+
+                    // depth bottom
+                    crate.setDepth(0);
+
                     crate.body.moves = false; //makes crates immovable
 
                     crate.setPipeline('Light2D'); // Add crates to Light2d pipeline
