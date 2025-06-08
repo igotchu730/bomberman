@@ -769,10 +769,21 @@ function update(){
             // Set up collision detection between player and explosion
             scene.physics.add.overlap(scene.player, explosion, () => {
                 if (!scene.player.isDead) {
+                    
                     // set player is dead
                     scene.player.isDead = true;
                     // stop player movement
                     scene.player.setVelocity(0);
+
+                    // player flashes white when hit
+                    const flash = scene.add.sprite(scene.player.x, scene.player.y, 'character') //create new sprite over player
+                        .setScale(scene.player.scaleX) // same size as player
+                        .setFrame(scene.player.anims.currentFrame.index) //matches current player frame
+                        .setTint(0xFFFFFF) // pure white tine
+                        .setAlpha(1) // full brightness
+                        .setBlendMode(Phaser.BlendModes.ADD) // brightens whats underneath
+                        .setDepth(scene.player.depth + 1); // flash is above player
+                    scene.time.delayedCall(300, () => flash.destroy()); // destroy flash after set time
 
                     // find last faced direcction and play death animation
                     const direction = scene.lastFacedDirection.replace('idle-', '');
@@ -787,6 +798,7 @@ function update(){
                     //after some time, destory player body
                     scene.time.delayedCall(1200, () => {
                         scene.player.destroy();
+                        scene.lights.removeLight(scene.playerLight); //remove platyer light
                     })
                 };
             }, null, scene);
@@ -816,10 +828,19 @@ function update(){
         Bomb logic
     */
 
-    const spaceKey = this.spaceKey; // spaceKey object
+    /* FOR FUTURE SAFEGUARD */
+    // set variable to track the next time player can plant bomb
+    if(!this.nextBombTime) this.nextBombTime = 0;
+    // track current time
+    const now = this.time.now;
+    // cool down time for planting bomb
+    const holdInterval = 0;
 
-    /* Bomb spawning when space is pressed */
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+    /* Bomb spawning when space is pressed/held and next bomb time is 0 */
+    if (this.spaceKey.isDown && now > this.nextBombTime) {
+
+        // update next bomb time to holdinterval
+        this.nextBombTime = now + holdInterval;
 
         // get center of player
         const playerCenter = this.player.getCenter();
@@ -840,9 +861,40 @@ function update(){
 
         // place bomb
         const bomb = this.physics.add.sprite(bombPosX,bombPosY,'bomb');
+        // bombs are not movable
+        bomb.body.immovable = true;
+        bomb.body.moves = false;
 
         /* Play bomb idle animation */
         bomb.play('bomb-idle');
+
+        /* track bombs, add to physics group */
+        this.bombs.add(bomb);
+
+
+        /* 
+            Player bomb pass logic 
+        */
+        // Create collider between bomb and player.
+        // Player initially has no collision with bomb placed
+        const bombCollider = this.physics.add.collider(this.player, bomb);
+        bombCollider.active = false;
+
+        const bombTileKey = tileKey; // store coordinate where bomb was placed
+
+        const bombMonitor = this.time.addEvent({
+            delay:50, // start a loop that runs every 50ms
+            loop: true,
+            callback:() => {
+                const playerTile = this.map.worldToTileXY(this.player.x,this.player.y);
+                const playerTileKey = toKey(playerTile.x,playerTile.y);
+                if(playerTileKey !== bombTileKey){ // if player has left bomb tile
+                    bombCollider.active = true;    // enable collision
+                }
+            }
+        });
+
+
 
         /* color/glow effects */
         const glow = this.add.sprite(bomb.x, bomb.y, 'bombGlow');
@@ -851,8 +903,6 @@ function update(){
         glow.setDepth(bomb.depth - 1);
         bomb.setTint(0xffcc99);
 
-        /* track bombs, add to physics group */
-        this.bombs.add(bomb);
 
         // Track tile as occupied
         this.occupiedBombTile.add(tileKey);
@@ -866,6 +916,7 @@ function update(){
             this.occupiedBombTile.delete(tileKey);
             this.lights.removeLight(bomb.light);
             this.bombsPlaced-- //reset bombs placed
+            bombMonitor.remove(); //remove the player collision check
             bomb.destroy();
             detonateBomb(this, this.map, tile, this.blockedWallTiles, this.explosionRadius);
         });
