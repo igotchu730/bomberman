@@ -34,6 +34,11 @@ const config = {
     USEFUL FUNCTIONS & VARIABLES
 */
 
+// initialize global player stats
+let speed = 80; // player speed
+let bombCount = 1; // number of bombs
+let explosionRadius = 1; // explosion range
+
 // function to turn tile coordinates to keys
 function toKey(x, y) {
     return `${x},${y}`;
@@ -80,6 +85,24 @@ function preload(){
 
     /* Import explosion sprite */
     this.load.spritesheet('explosion', new URL('assets/explosion.png', import.meta.url).href, {
+        frameWidth: 32,
+        frameHeight: 32
+    });
+
+    /* Import bombUp powerup sprite */
+    this.load.spritesheet('bombUp', new URL('assets/bombUp.png', import.meta.url).href, {
+        frameWidth: 32,
+        frameHeight: 32
+    });
+
+    /* Import range powerup sprite */
+    this.load.spritesheet('range', new URL('assets/range.png', import.meta.url).href, {
+        frameWidth: 32,
+        frameHeight: 32
+    });
+
+    /* Import speed powerup sprite */
+    this.load.spritesheet('speed', new URL('assets/speed.png', import.meta.url).href, {
         frameWidth: 32,
         frameHeight: 32
     });
@@ -252,7 +275,7 @@ function create(){
 
     /* Make the player look bigger, Make collision box smaller */
     this.player.setScale(2);
-    this.player.body.setSize(8, 8).setOffset(12, 14);
+    this.player.body.setSize(7, 7).setOffset(13, 15);
 
 
     /* Player character collides with world bounds */
@@ -420,7 +443,6 @@ function create(){
     this.occupiedBombTile = new Set();
 
     /* count bombs player has and amount placed */
-    this.bombCount = 5;
     this.bombsPlaced = 0;
 
 
@@ -577,14 +599,6 @@ function create(){
         repeat: 0
     });
 
-    /* 
-        ---EXPLOSION LOGIC---
-    */
-
-    // maximum amount of crates
-    this.explosionRadius = 7;
-
-
 
 
 };
@@ -600,7 +614,6 @@ function update(){
     if (this.player.isDead) return;
 
 
-    const speed = 80; // player speed
     const player = this.player; // player object
     const cursors = this.cursors; // cursor object
     const wasd = this.wasd; // wasd object
@@ -649,6 +662,37 @@ function update(){
     /* Dynamic player lighting, light follows player */
     this.playerLight.x = this.player.x;
     this.playerLight.y = this.player.y;
+
+
+    
+
+    /* 
+        ---DROP LOGIC---
+    */
+   // drop types and chances
+    const drops = [
+        { type: null, chance: 0.5 },
+        { type: 'speed', chance: 0.18 },
+        { type: 'range', chance: 0.18 },
+        { type: 'bombUp', chance: 0.14 },
+    ];
+    // powerup functions
+    const effects = {
+        bombUp: () => bombCount++,
+        speed: () => speed+=10,
+        range: () => explosionRadius++
+    };
+   // function to determine if a crate drops anything and what
+    function randomDrop(){
+        const roll = Math.random();
+        let cumulative = 0;
+
+        // loop through drops array and determine drop type
+        for(const drop of drops){
+            cumulative += drop.chance;
+            if (roll < cumulative) return drop.type;
+        }
+    }
 
 
 
@@ -710,6 +754,36 @@ function update(){
                         crate.on('animationcomplete', () => {
                             crate.destroy();
                         });
+
+                        // determine item drops and spawn it after crate destroyed
+                        let drop = randomDrop();
+
+                        // collision for player and power
+                        if(drop !== null) {
+                            // add power object to scene
+                            let droppedPower = scene.physics.add.sprite(worldX, worldY, drop);
+                            // make power not move
+                            droppedPower.body.immovable = true;
+                            droppedPower.body.moves = false;
+                            //set overlap with player, handle powerup, destroy power on contact
+                            scene.physics.add.overlap(scene.player,droppedPower, ()=>{
+                                effects[drop]?.(); // call powerup gain
+
+                                // for test
+                                if (drop === 'bombUp') {
+                                    console.log(`Bomb Count: ${bombCount}`);
+                                }
+                                if (drop === 'speed') {
+                                    console.log(`Speed: ${speed}`);
+                                }
+                                if (drop === 'range') {
+                                    console.log(`Explosion Radius: ${explosionRadius}`);
+                                }
+
+                                droppedPower.destroy();
+                            });
+                        };
+
                     }
 
                     // delete crate key from set
@@ -850,7 +924,7 @@ function update(){
         const tileKey = `${tile.x},${tile.y}`;
 
         // check if tile is occupied by bomb or if player has enough bombs left
-        if(this.occupiedBombTile.has(tileKey) || this.bombsPlaced >= this.bombCount) return;
+        if(this.occupiedBombTile.has(tileKey) || this.bombsPlaced >= bombCount) return;
 
 
         // convert tile coords to map coords
@@ -918,7 +992,7 @@ function update(){
             this.bombsPlaced-- //reset bombs placed
             bombMonitor.remove(); //remove the player collision check
             bomb.destroy();
-            detonateBomb(this, this.map, tile, this.blockedWallTiles, this.explosionRadius);
+            detonateBomb(this, this.map, tile, this.blockedWallTiles, explosionRadius);
         });
     }
 
