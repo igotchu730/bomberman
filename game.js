@@ -275,7 +275,7 @@ function create(){
 
     /* Make the player look bigger, Make collision box smaller */
     this.player.setScale(2);
-    this.player.body.setSize(7, 7).setOffset(13, 15);
+    this.player.body.setSize(10, 12).setOffset(11, 11);
 
 
     /* Player character collides with world bounds */
@@ -311,8 +311,8 @@ function create(){
    /* Loop through every object in tiled object layer called collision */
     collisionLayer.objects.forEach(obj => {
         // create phaser rectangle at position and size of tiled object
-        const expandedWidth = obj.width + 4;
-        const expandedHeight = obj.height + 4;
+        const expandedWidth = obj.width;
+        const expandedHeight = obj.height;
         const collisionObj = this.add.rectangle(
             obj.x + obj.width / 2,
             obj.y + obj.height / 2,
@@ -377,19 +377,20 @@ function create(){
                 if(Math.random() < spawnChance){
                     const worldX = map.tileToWorldX(x);
                     const worldY = map.tileToWorldY(y);
-                    const crate = scene.physics.add.sprite(
+
+                    // create crate as a static object
+                    const crate = scene.crates.create(
                         worldX + map.tileWidth / 2,
                         worldY + map.tileHeight / 2,
                         crateTextureKey
                     );
 
-                    // crate collision correction ???
-                    crate.body.setSize(crate.width + 4, crate.height + 4).setOffset(-2, -2);
+
+                    // crate collision correction 
+                    crate.body.setSize(crate.width, crate.height).setOffset(0, 0);
 
                     // depth bottom
                     crate.setDepth(0);
-
-                    crate.body.moves = false; //makes crates immovable
 
                     crate.setPipeline('Light2D'); // Add crates to Light2d pipeline
                     crate.setTint(0xAAAAAA); // Darken the crates a bit
@@ -412,7 +413,7 @@ function create(){
     const spawnChance = 0.85;
 
     // create crate physics group
-    this.crates = this.physics.add.group();
+    this.crates = this.physics.add.staticGroup();
 
     // call function for crate spawning, assign return to crate Tiles set
     crateTiles = spawnCrates(this, map, this.blockedTiles, this.crates, 'crate', maxCrate, spawnChance);
@@ -777,7 +778,7 @@ function update(){
                                     console.log(`Speed: ${speed}`);
                                 }
                                 if (drop === 'range') {
-                                    console.log(`Explosion Radius: ${explosionRadius}`);
+                                    console.log(`Range: ${explosionRadius}`);
                                 }
 
                                 droppedPower.destroy();
