@@ -1,4 +1,19 @@
 import Phaser from 'phaser';
+import { io } from 'socket.io-client';
+
+
+/*
+    WEB SOCKETS & SERVER
+*/
+// connect to server
+const socket = io();
+// log connection
+socket.on('connect', () => {
+    console.log('Connected to server: ', socket.id)
+});
+
+
+
 
 const config = {
     /* How phaser renders the game */
@@ -275,7 +290,7 @@ function create(){
 
     /* Make the player look bigger, Make collision box smaller */
     this.player.setScale(2);
-    this.player.body.setSize(10, 12).setOffset(11, 11);
+    this.player.body.setSize(8, 12).setOffset(12, 11);
 
 
     /* Player character collides with world bounds */
